@@ -2,8 +2,6 @@
 
 Streamlit dashboard for monitoring tutor bot pilot study exports: engagement metrics, teacher rankings, prompt pipeline checks, and data-quality flags.
 
-**Do not commit** `store_Pilot_v*` export folders. They are large, often sensitive, and live on the machine (or server) that runs the app. Point the sidebar **Data root** (or the `TUTOR_BOT_DATA_ROOT` environment variable) at the directory that *contains* those `store_Pilot_vX` folders.
-
 ## What is in the repo
 
 - `dashboard_app.py` — Streamlit app
