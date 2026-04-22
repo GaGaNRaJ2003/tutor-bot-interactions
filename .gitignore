@@ -1,0 +1,35 @@
+# Pilot exports (large, machine-specific — point Data root at these on the host)
+store_Pilot_v*/
+store_Pilot_*/
+
+# Generated analysis artifacts (optional: remove a line if you want them in the repo)
+pilot_*_summary.csv
+pilot_*_details.csv
+pilot_*_analysis.json
+pilot_interaction_view_workbook.xlsx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+.env
+.env.local
+
+# Streamlit / IDE
+.streamlit/secrets.toml
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / temp
+*.log
+.pytest_cache/
+_test_*.html
