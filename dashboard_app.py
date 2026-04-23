@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shutil
+import tempfile
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +123,53 @@ st.markdown(
 
 def discover_pilot_dirs(root: Path) -> list[Path]:
     return sorted(path for path in root.iterdir() if path.is_dir() and path.name.startswith("store_Pilot_v"))
+
+
+def _safe_unzip(archive: zipfile.ZipFile, dest: Path) -> None:
+    dest = dest.resolve()
+    for member in archive.infolist():
+        out = (dest / member.filename).resolve()
+        if not (str(out) == str(dest) or str(out).startswith(str(dest) + os.sep)):
+            raise ValueError("Invalid path in zip archive (possible zip slip).")
+        if member.is_dir() or str(member.filename).rstrip().endswith("/"):
+            out.mkdir(parents=True, exist_ok=True)
+        else:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(member) as src, out.open("wb") as t:
+                shutil.copyfileobj(src, t)
+
+
+def _find_pilot_data_parent(extracted: Path) -> Path:
+    """Return the directory that *directly* contains store_Pilot_v* folders (what discover_pilot_dirs expects)."""
+    stores = [
+        p
+        for p in extracted.rglob("store_Pilot_v*")
+        if p.is_dir() and p.name.startswith("store_Pilot_v")
+    ]
+    if not stores:
+        raise FileNotFoundError("No store_Pilot_v* folder found. Zip the parent folder of your exports, or the exports themselves.")
+    parents = {s.parent for s in stores}
+    if len(parents) != 1:
+        raise ValueError(
+            "All store_Pilot_v* folders must sit under a single parent directory. "
+            "Re-zip so one folder contains store_Pilot_v0, store_Pilot_v1, etc."
+        )
+    return parents.pop()
+
+
+def extract_pilot_zip_to_temp(zip_bytes: bytes) -> tuple[Path, Path]:
+    """Return (pilot_data_root, temp_base_to_delete) where all files live under temp_base_to_delete."""
+    base = Path(tempfile.mkdtemp(prefix="pilot_stores_"))
+    try:
+        with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
+            _safe_unzip(zf, base)
+        root = _find_pilot_data_parent(base)
+        if not discover_pilot_dirs(root):
+            raise FileNotFoundError("Expected store_Pilot_v* folders with JSON exports were not found at the top level of the unzipped tree.")
+    except (zipfile.BadZipFile, OSError, FileNotFoundError, ValueError) as e:
+        shutil.rmtree(base, ignore_errors=True)
+        raise e
+    return root, base
 
 
 def dataset_signature(root: Path) -> str:
@@ -652,14 +704,79 @@ st.markdown(
 )
 
 
+def _prune_stale_session_upload() -> None:
+    zroot = st.session_state.get("session_upload_root")
+    zbase = st.session_state.get("session_zip_base")
+    if not zroot:
+        return
+    if not Path(zroot).exists() or (zbase and not Path(zbase).exists()):
+        for k, v in (("session_upload_root", None), ("session_zip_base", None), ("last_zip_md5", None)):
+            st.session_state[k] = v
+
+
+def _ensure_upload_state_keys() -> None:
+    st.session_state.setdefault("session_upload_root", None)
+    st.session_state.setdefault("session_zip_base", None)
+    st.session_state.setdefault("last_zip_md5", None)
+
+
 with st.sidebar:
-    st.header("Controls")
-    data_root = st.text_input(
-        "Data root",
-        value=_DEFAULT_DATA_ROOT,
-        help="Folder that contains the store_Pilot_v* directories. On a server you can set the "
-        "environment variable TUTOR_BOT_DATA_ROOT instead of typing here.",
+    st.subheader("Load pilot data (ZIP)")
+    st.caption(
+        "For Streamlit Cloud, upload a .zip. It must have one parent folder with "
+        "store_Pilot_v0, store_Pilot_v1, … as direct children." 
     )
+    _ensure_upload_state_keys()
+    _prune_stale_session_upload()
+    f = st.file_uploader("Pilot export .zip (optional)", type=["zip"], key="pilot_zip_uploader")
+    if f is not None and f.getvalue():
+        b = f.getvalue()
+        h = hashlib.md5(b).hexdigest()
+        if h != st.session_state.get("last_zip_md5"):
+            try:
+                root, base = extract_pilot_zip_to_temp(b)
+            except (ValueError, FileNotFoundError, zipfile.BadZipFile) as e:
+                st.error(str(e))
+            except OSError as e:
+                st.error(f"Failed to read or extract the zip: {e}")
+            else:
+                old_b = st.session_state.get("session_zip_base")
+                if old_b and str(old_b) != str(base) and Path(old_b).exists():
+                    shutil.rmtree(old_b, ignore_errors=True)
+                st.session_state["last_zip_md5"] = h
+                st.session_state["session_upload_root"] = str(root)
+                st.session_state["session_zip_base"] = str(base)
+                load_dashboard_data.clear()
+                st.rerun()
+    if st.session_state.get("session_upload_root") and Path(st.session_state["session_upload_root"]).exists():
+        st.info("Session is using the last uploaded zip (in-memory; temp is cleared on server restart).")
+        if st.button("Remove uploaded data", use_container_width=True, key="remove_zip_upload"):
+            b = st.session_state.get("session_zip_base")
+            if b and Path(b).exists():
+                shutil.rmtree(b, ignore_errors=True)
+            st.session_state["session_upload_root"] = None
+            st.session_state["session_zip_base"] = None
+            st.session_state["last_zip_md5"] = None
+            load_dashboard_data.clear()
+            st.rerun()
+
+    st.header("Controls")
+    using_upload = bool(
+        st.session_state.get("session_upload_root")
+        and Path(st.session_state["session_upload_root"]).exists()
+    )
+    if using_upload:
+        up = st.session_state["session_upload_root"]
+        st.text_input("Data root", value=up, disabled=True, help="Data source from the uploaded zip in this session.")
+        data_root = up
+    else:
+        data_root = st.text_input(
+            "Data root",
+            value=_DEFAULT_DATA_ROOT,
+            help="Folder that contains the store_Pilot_v* directories. On a server you can set the "
+            "environment variable TUTOR_BOT_DATA_ROOT instead of typing here.",
+            key="manual_data_root_input",
+        )
     refresh = st.button("Refresh data from disk", use_container_width=True)
     if refresh:
         load_dashboard_data.clear()
@@ -716,7 +833,10 @@ with st.sidebar:
 
 
 if summary_df.empty:
-    st.warning("No pilot folders were found. Add folders named store_Pilot_vX and refresh.")
+    st.warning(
+        "No pilot folders were found. Upload a .zip in the sidebar (one folder containing store_Pilot_v0, "
+        "store_Pilot_v1, …) or set Data root to a path with those folders, then refresh."
+    )
     st.stop()
 
 summary_view = summary_df[summary_df["pilot"].isin(selected_pilots)].copy()

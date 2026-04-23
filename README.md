@@ -1,6 +1,14 @@
-# Tutor Bot Pilot Monitor
+**Do not commit** `store_Pilot_v*` export folders. They are large, often sensitive, and live on the machine (or server) that runs the app. Point the sidebar **Data root** (or the `TUTOR_BOT_DATA_ROOT` environment variable) at the directory that *contains* those `store_Pilot_vX` folders, or use **Upload a zip** in the sidebar (see below).
 
-Streamlit dashboard for monitoring tutor bot pilot study exports: engagement metrics, teacher rankings, prompt pipeline checks, and data-quality flags.
+## Zip layout for in-browser upload (Streamlit Community Cloud, etc.)
+
+The Streamlit app can extract a **session-only** copy of your exports from a `.zip` (your laptop’s `C:\...` is not available to the host).
+
+1. Create **one** folder (any name) whose **children** are `store_Pilot_v0`, `store_Pilot_v1`, … (each folder holds that pilot’s JSON and related files as usual).
+2. Zip **that** folder (on Windows, right-click the parent folder → Send to → Compressed folder).
+3. In the app sidebar, upload the zip. Data stays in a temp directory for the **session** and is **cleared** when the app restarts or you click **Remove uploaded data**. Do not upload if the data is highly sensitive: anyone with the app URL and access could upload and view; treat zips as confidential the same as the raw folders.
+
+[Streamlit Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud) limits upload size (tens of MB; check current docs). For huge exports, self-host with `TUTOR_BOT_DATA_ROOT` and disk paths instead.
 
 ## What is in the repo
 
@@ -54,11 +62,9 @@ streamlit run dashboard_app.py
 
 3. Open [Streamlit Community Cloud](https://share.streamlit.io/), sign in with GitHub, **New app** → select the repo, branch `main`, main file **`dashboard_app.py`**. Choose a Python version (e.g. 3.12) in the deploy flow if prompted.
 
-4. **Important:** the Cloud run has **no access** to your laptop’s `C:\...` path. The app will start with an **empty** data root unless you:
-   - host the app on **your own** machine/VM and set `TUTOR_BOT_DATA_ROOT` to a folder that holds the stores, or  
-   - add other integrations (S3, secrets) yourself — not included here.
+4. **Important:** the Cloud run has **no access** to your laptop’s `C:\...` path. Use the sidebar **Load pilot data (ZIP)** to upload a zip built as in the section above, or set **Data root** on a self-hosted deploy where a path is valid.
 
-   For a **private** dataset, Community Cloud is usually not the right place unless you ship data by another mechanism. Prefer **self-hosted** Streamlit (same `streamlit run` on a server with the data on disk) or **Docker** on a VM with a volume mount.
+   For **confidential** pilot data, prefer **self-hosted** Streamlit with `TUTOR_BOT_DATA_ROOT` (or a VM volume) rather than a public share URL, unless you understand who can open the app and upload.
 
 ## Self-hosting on a server (recommended for real pilot data)
 
