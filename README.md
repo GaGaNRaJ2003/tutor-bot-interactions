@@ -1,20 +1,78 @@
-## Zip layout for in-browser upload (Streamlit Community Cloud, etc.)
+# Tutor Bot — Pilot study dashboard
 
-The Streamlit app can extract a **session-only** copy of your exports from a `.zip` (your laptop’s `C:\...` is not available to the host).
+This app helps you **explore pilot-study data**: summaries, how teachers engaged, and quality-related views. You open it in a web browser (using the link you were given) and **load your own export** so you can see charts and tables for your pilots.
 
-1. Create **one** folder (any name) whose **children** are `store_Pilot_v0`, `store_Pilot_v1`, … (each folder holds that pilot’s JSON and related files as usual).
-2. Zip **that** folder (on Windows, right-click the parent folder → Send to → Compressed folder).
-3. In the app sidebar, upload the zip. Data stays in a temp directory for the **session** and is **cleared** when the app restarts or you click **Remove uploaded data**. Do not upload if the data is highly sensitive: anyone with the app URL and access could upload and view; treat zips as confidential the same as the raw folders.
+---
 
-[Streamlit Community Cloud](https://docs.streamlit.io/deploy/streamlit-community-cloud) limits upload size (tens of MB; check current docs). For huge exports, self-host with `TUTOR_BOT_DATA_ROOT` and disk paths instead.
+## Before you start
 
-## What is in the repo
+- You need the **pilot export folders** from your project — usually named `store_Pilot_v0`, `store_Pilot_v1`, and so on, each with JSON and related files inside.
+- The live app (for example on Streamlit Cloud) **cannot see your computer’s files by path**. To use it online, you will **upload a zip** you create on your machine. If your team runs the app on an internal server with data already on disk, you may not need a zip; ask whoever gave you the link.
 
-- `dashboard_app.py` — Streamlit app
-- `analyze_pilot_studies.py` — batch analysis (optional local use)
-- `requirements.txt` — Python dependencies for deployment
+---
 
-## Local run
+## Load your data with a zip (typical for the hosted link)
+
+### 1. Put all pilot folders in one place
+
+Create **one folder** (name it anything you like). **Inside that folder only**, you should have your pilot export folders, for example:
+
+- `store_Pilot_v0`
+- `store_Pilot_v1`
+- … and any other `store_Pilot_v…` folders you use  
+
+Nothing special is required in the *parent* folder name — it only has to **contain** those `store_Pilot_v…` folders as **direct** subfolders.
+
+### 2. Zip that parent folder
+
+- **Windows:** Right‑click the **parent** folder (the one that contains `store_Pilot_v0`, …) → **Send to** → **Compressed (zipped) folder**.
+- **macOS:** Right‑click the parent folder → **Compress**.
+
+### 3. Open the app and upload
+
+1. Open the dashboard in your browser (the URL from your team).
+2. In the **sidebar**, find **Load pilot data (ZIP)** and choose your `.zip` file.
+3. Wait for the app to process it. The sidebar will show that you are using data from the last upload in this **session**.
+
+### 4. Refresh and explore
+
+- Use **Refresh data from disk** in the sidebar if you change something and the numbers look stale.
+- Use **Remove uploaded data** when you want to clear what was loaded from the zip in this session.
+
+### What to expect
+
+- Data loaded from a zip is kept only **for this browser session** (and may be **lost if the app restarts** on the host). It is not your permanent backup — keep the original export folders in a safe place.
+- If the zip is **very large**, upload may fail or be slow. Your host may also limit upload size; if that happens, ask your team about a self‑hosted app or a smaller export.
+
+### Privacy
+
+Treat zip uploads like the original export: **sensitive** if the pilot data is sensitive. Only use links you trust, and do not share exports more widely than your policy allows. Anyone who can open the app and upload can see the data they put in (same as any web tool you use with files you upload).
+
+---
+
+## If the sidebar has “Data root” and your team uses a server path
+
+Sometimes the app is already pointed at a folder on a server. You may see **Data root** in the sidebar with a path, or the charts may work **without** uploading. In that case, follow the instructions your administrator gave you. The zip steps above are mainly for the **browser-hosted** version where the app has no access to your PC’s folders.
+
+---
+
+## Something looks wrong?
+
+| What you see | What to try |
+|----------------|------------|
+| No charts / “no pilot folders” | Check that the zip’s layout is: **one** folder, and **inside** it only the `store_Pilot_v…` folders (not a zip of each store separately in a confusing way). Re‑zip the **parent** of `store_Pilot_v0`, `store_Pilot_v1`, … |
+| Empty after a while | The session may have reset. Upload the zip again. |
+| Upload fails or times out | Try a smaller zip, or ask your team about size limits. |
+
+---
+
+## For administrators and developers (repository)
+
+The following is for people who **maintain this repository**, deploy the app, or run it on a server — not for day‑to day dashboard users.
+
+**Repository contents (high level):** `dashboard_app.py` (Streamlit UI), `analyze_pilot_studies.py` (optional local batch / Excel from data on disk), `requirements.txt` (Python dependencies). Do **not** commit `store_Pilot_v*` export trees; they are large, often sensitive, and belong on the machine or share where analysis runs.
+
+**Run locally (development):**
 
 ```powershell
 cd tutor-bot-interactions
@@ -24,58 +82,5 @@ pip install -r requirements.txt
 streamlit run dashboard_app.py
 ```
 
-Place or symlink your `store_Pilot_v0`, `store_Pilot_v1`, … folders next to the app (or set **Data root** in the UI).
+Point **Data root** in the UI at the folder that **contains** `store_Pilot_v0`, `store_Pilot_v1`, … (or set `TUTOR_BOT_DATA_ROOT` to that path).
 
-### Optional: default data directory via environment
-
-On a server, set the directory that contains the pilot stores (same parent folder the app would use when opened locally):
-
-```powershell
-$env:TUTOR_BOT_DATA_ROOT = "C:\path\to\folder\containing\store_Pilot_vX"
-streamlit run dashboard_app.py
-```
-
-Linux example:
-
-```bash
-export TUTOR_BOT_DATA_ROOT=/data/tutor-exports
-streamlit run dashboard_app.py
-```
-
-## Deploy to Streamlit Community Cloud (GitHub)
-
-1. Create a new **empty** repository on GitHub (any name, e.g. `tutor-bot-interactions`).
-
-2. From this project folder (with Git), add the remote and push:
-
-   ```powershell
-   git init
-   git add .
-   git status
-   git commit -m "Initial commit: Tutor Bot Pilot Monitor (no pilot data in repo)"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
-   git push -u origin main
-   ```
-
-3. Open [Streamlit Community Cloud](https://share.streamlit.io/), sign in with GitHub, **New app** → select the repo, branch `main`, main file **`dashboard_app.py`**. Choose a Python version (e.g. 3.12) in the deploy flow if prompted.
-
-4. **Important:** the Cloud run has **no access** to your laptop’s `C:\...` path. Use the sidebar **Load pilot data (ZIP)** to upload a zip built as in the section above, or set **Data root** on a self-hosted deploy where a path is valid.
-
-   For **confidential** pilot data, prefer **self-hosted** Streamlit with `TUTOR_BOT_DATA_ROOT` (or a VM volume) rather than a public share URL, unless you understand who can open the app and upload.
-
-## Self-hosting on a server (recommended for real pilot data)
-
-1. Clone the repo (or copy files) onto the host.
-2. Install Python 3.12+ and `pip install -r requirements.txt`.
-3. Copy the `store_Pilot_v*` tree to a path on that server, e.g. `/data/pilots/`.
-4. Set `TUTOR_BOT_DATA_ROOT=/data/pilots` and run under `screen`, `systemd`, or a process manager, or use Docker.
-5. Put the app behind your org’s reverse proxy and authentication if the data is sensitive.
-
-## Regenerating the Excel/CSV (optional, on a machine with data)
-
-```powershell
-python analyze_pilot_studies.py
-```
-
-This writes CSV/JSON/Excel under the data root; those outputs are **gitignored** by default.
