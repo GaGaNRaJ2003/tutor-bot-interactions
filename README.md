@@ -1,5 +1,3 @@
-**Do not commit** `store_Pilot_v*` export folders. They are large, often sensitive, and live on the machine (or server) that runs the app. Point the sidebar **Data root** (or the `TUTOR_BOT_DATA_ROOT` environment variable) at the directory that *contains* those `store_Pilot_vX` folders, or use **Upload a zip** in the sidebar (see below).
-
 ## Zip layout for in-browser upload (Streamlit Community Cloud, etc.)
 
 The Streamlit app can extract a **session-only** copy of your exports from a `.zip` (your laptop’s `C:\...` is not available to the host).
